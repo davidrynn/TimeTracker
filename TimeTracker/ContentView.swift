@@ -13,11 +13,11 @@ class Stopwatch: Identifiable, ObservableObject {
 
     @Published var counter: Int = 0
     
-    let id = UUID()
+    let id = 0
     
     var timer = Timer()
     
-    @Published var title: String
+    @State var title: String
     
     var started = false
     
@@ -44,7 +44,7 @@ class Stopwatch: Identifiable, ObservableObject {
         timer.invalidate()
     }
     
-    func toggle() {
+    func toggleClock() {
         if started {
             started = false
             stop()
@@ -54,39 +54,49 @@ class Stopwatch: Identifiable, ObservableObject {
         start()
     }
 }
-//
-//@State private var name: String = "Tim"
-//
-//var body: some View {
-//    VStack {
-//        TextField("Enter your name", text: $name)
-//        Text("Hello, \(name)!")
-//    }
-//}
 
 struct TrackerView: View {
 
-    @ObservedObject var stopwatch: Stopwatch
-        { didSet(newValue) {
+    @ObservedObject var stopwatch: Stopwatch {
+        didSet(newValue) {
             title = newValue.title
         }
-        
     }
-    @State private var title: String = "Placeholder"
+    @State var canEdit = false
+    
+    @State private var title = "New"
     
     var body: some View {
+        VStack {
         HStack {
-//            Text(self.stopwatch.title)
-            TextField(self.stopwatch.title, text: $title)
+            Text(title)
             Spacer()
-            Text("\(self.stopwatch.counter)")
+            Text(String.fromTimeInterval(time: self.stopwatch.counter))
         }.font(.largeTitle)
+            .onTapGesture {
+                self.stopwatch.toggleClock()
+        }
+        .onLongPressGesture {
+            self.canEdit.toggle()
+            }
+            if self.canEdit {
+                HStack {
+                    TextField("Enter Title", text: $title, onCommit: { self.canEdit = false })
+                    Spacer()
+
+                }
+            }
+        }
     }
 }
 
 struct ContentView: View {
 
-    @State var stopWatches: [Stopwatch] = [Stopwatch(title: "first")]
+    @State var stopWatches: [Stopwatch] = getData() {
+        didSet(newValue) {
+            saveData(stopwatches: newValue)
+        }
+    }
     @State var isPresented = false
     
     var body: some View {
@@ -94,42 +104,37 @@ struct ContentView: View {
         NavigationView {
             List {
                 ForEach(stopWatches) { stopwatch in
-                    HStack {
                         TrackerView(stopwatch: stopwatch)
-                            .onTapGesture {
-                                stopwatch.toggle()
-                            }
-    //                        .onLongPressGesture {
-    //                            stopwatch.title =
-    //                        }
-                        Text("Edit")
-                            .onTapGesture {
-                            self.isPresented = true
-                            
-                            }
-                            .sheet(isPresented: self.$isPresented) {
-                                Text(stopwatch.title)
-                            }
-                    }
-                }.onDelete(perform: delete(at:))
-            }
+                    }.onDelete(perform: delete(at:))
+                }
                 .navigationBarTitle("Timers")
                 .navigationBarItems(trailing:
                     Button(action: addTracker ) {
                         Image(systemName: "plus")
-                        
-                        
             })
         }
-
     }
     
     func addTracker() {
-        stopWatches.append(Stopwatch(title: "Placeholder"))
+        stopWatches.append(Stopwatch(title: "New"))
     }
+    
     func delete(at offsets: IndexSet) {
         stopWatches.remove(atOffsets: offsets)
      }
+    
+    static func getData() -> [Stopwatch] {
+        guard let decoded  = UserDefaults.standard.object(forKey: "stopwatches") as? Data,
+            let decodedStopwatches = NSKeyedUnarchiver.unarchiveObject(with: decoded) as? [Stopwatch]  else {
+                return []
+        }
+        return decodedStopwatches
+    }
+    
+    func saveData(stopwatches: [Stopwatch]) {
+        let data = NSKeyedArchiver.archivedData(withRootObject: stopwatches)
+        UserDefaults.standard.setValue(data, forKey: "stopwatches")
+    }
 }
 
 struct ContentView_Previews: PreviewProvider {
@@ -138,3 +143,19 @@ struct ContentView_Previews: PreviewProvider {
     }
 }
 //<a href="https://www.freepik.com/free-photos-vectors/icon">Icon vector created by freepik - www.freepik.com</a>
+
+
+extension String {
+    static func fromTimeInterval(time: Int) -> String {
+        let hours = time / 3600
+        let minutes = time / 60 % 60
+        let seconds = time % 60
+        return String(format:"%02i:%02i:%02i", hours, minutes, seconds)
+    }
+}
+
+struct TrackerStruct {
+    let id: UUID
+    let counterTime: Int
+    let title: String
+}
