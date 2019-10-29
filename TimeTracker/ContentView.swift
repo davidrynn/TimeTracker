@@ -13,7 +13,7 @@ class Stopwatch: Identifiable, ObservableObject {
 
     @Published var counter: Int = 0
     
-    let id = 0
+    let id: UUID
     
     var timer = Timer()
     
@@ -21,7 +21,8 @@ class Stopwatch: Identifiable, ObservableObject {
     
     var started = false
     
-    init(title: String) {
+    init(id: UUID = UUID(), title: String) {
+        self.id = id
         self.title = title
     }
     
@@ -63,8 +64,11 @@ struct TrackerView: View {
         }
     }
     @State var canEdit = false
-    
-    @State private var title = "New"
+    @State var title: String
+    @State var isCounting = false
+    var color: Color {
+        return isCounting ? .green : .clear
+    }
     
     var body: some View {
         VStack {
@@ -72,19 +76,22 @@ struct TrackerView: View {
             Text(title)
             Spacer()
             Text(String.fromTimeInterval(time: self.stopwatch.counter))
-        }.font(.largeTitle)
+        }
+        .background(color)
+            .font(.largeTitle)
             .onTapGesture {
                 self.stopwatch.toggleClock()
-        }
-        .onLongPressGesture {
-            self.canEdit.toggle()
+                self.isCounting.toggle()
+            }
+            .onLongPressGesture {
+                self.canEdit.toggle()
             }
             if self.canEdit {
                 HStack {
                     TextField("Enter Title", text: $title, onCommit: { self.canEdit = false })
                     Spacer()
 
-                }
+                }.background(Color.gray)
             }
         }
     }
@@ -92,11 +99,7 @@ struct TrackerView: View {
 
 struct ContentView: View {
 
-    @State var stopWatches: [Stopwatch] = getData() {
-        didSet(newValue) {
-            saveData(stopwatches: newValue)
-        }
-    }
+    @State var stopWatches: [Stopwatch] = getData()
     @State var isPresented = false
     
     var body: some View {
@@ -104,11 +107,16 @@ struct ContentView: View {
         NavigationView {
             List {
                 ForEach(stopWatches) { stopwatch in
-                        TrackerView(stopwatch: stopwatch)
+                    TrackerView(stopwatch: stopwatch, title: stopwatch.title)
                     }.onDelete(perform: delete(at:))
                 }
                 .navigationBarTitle("Timers")
-                .navigationBarItems(trailing:
+            .navigationBarItems(
+                leading:
+                Button(action: { self.saveData(stopwatches: self.stopWatches) }) {
+                    Image(systemName: "archivebox")
+                },
+                    trailing:
                     Button(action: addTracker ) {
                         Image(systemName: "plus")
             })
@@ -124,16 +132,25 @@ struct ContentView: View {
      }
     
     static func getData() -> [Stopwatch] {
-        guard let decoded  = UserDefaults.standard.object(forKey: "stopwatches") as? Data,
-            let decodedStopwatches = NSKeyedUnarchiver.unarchiveObject(with: decoded) as? [Stopwatch]  else {
-                return []
+        guard let stopWatchdict = UserDefaults.standard.value(forKey: "stopwatches") as? [[String: Any]] else { return [] }
+        return stopWatchdict.compactMap {
+            let id: UUID = UUID(uuidString: $0["id"] as! String) ?? UUID()
+            let title: String = $0["title"] as? String ?? "invalid title"
+            let sw = Stopwatch(id: id, title: title)
+            sw.counter = $0["counter"] as? Int ?? 0
+            return sw
         }
-        return decodedStopwatches
+
     }
     
     func saveData(stopwatches: [Stopwatch]) {
-        let data = NSKeyedArchiver.archivedData(withRootObject: stopwatches)
-        UserDefaults.standard.setValue(data, forKey: "stopwatches")
+        let dict: NSArray = stopwatches.map {
+            [ "id": ($0.id).uuidString,
+              "title": $0.title as NSString,
+              "counter": $0.counter
+                ] as NSDictionary
+        } as NSArray
+        UserDefaults.standard.setValue(dict, forKey: "stopwatches")
     }
 }
 
