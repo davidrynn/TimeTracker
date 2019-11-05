@@ -30,12 +30,14 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             self.window = window
             window.makeKeyAndVisible()
         }
+        startObservation()
     }
     
     func startObservation() {
-        NotificationCenter.default.addObserver(self, selector: #selector(willResignActive), name: UIApplication.willResignActiveNotification, object: nil)
-
+        NotificationCenter.default.addObserver(self, selector: #selector(willResignActive(_:)), name: UIApplication.willTerminateNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(willResignActive(_:)), name: UIApplication.didEnterBackgroundNotification, object: nil)
     }
+    
     @objc func willResignActive(_ notification: Notification) {
         saveData(stopwatches: stopwatches)
     }

@@ -17,7 +17,7 @@ class Stopwatch: Identifiable, ObservableObject {
     
     var timer = Timer()
     
-    @State var title: String
+    var title: String
     
     var started = false
     
@@ -56,27 +56,41 @@ class Stopwatch: Identifiable, ObservableObject {
     }
 }
 
+struct TrackerModel: Identifiable {
+    var counter: Int = 0
+    var id: UUID = UUID()
+    var isRunning: Bool = false
+    let startTime: NSDate = NSDate()
+    var stopTime: NSDate = NSDate()
+    var title: String
+}
+
+
 struct TrackerView: View {
     
     @ObservedObject var stopwatch: Stopwatch
     @State var canEdit = false
     @State var isCounting = false
+    @State var toggleColor = false
     var color: Color {
-        return isCounting ? .green : .clear
+        return toggleColor ? .green : .clear
     }
     
     var body: some View {
         VStack {
             HStack {
-                TextField("Enter Title", text: stopwatch.$title, onCommit: { self.canEdit = false }).environment(\.isEnabled, self.canEdit)
+                TextField("Enter Title", text: $stopwatch.title, onCommit: { self.canEdit = false }).environment(\.isEnabled, self.canEdit)
                 Spacer()
                 Text(String.fromTimeInterval(time: self.stopwatch.counter))
             }
             .background(color)
             .font(.largeTitle)
             .onTapGesture {
-                self.stopwatch.toggleClock()
                 self.isCounting.toggle()
+                self.stopwatch.toggleClock()
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    self.toggleColor.toggle()
+                }
             }
             .onLongPressGesture {
                 self.canEdit.toggle()
@@ -101,7 +115,7 @@ struct ContentView: View {
             .navigationBarTitle("Timers")
             .navigationBarItems(
                 leading:
-                Button(action: { self.saveData(stopwatches: self.stopWatches) }) {
+                Button(action: { UserDefaults.save(stopwatches: self.stopWatches) }) {
                     Image(systemName: "archivebox")
                 },
                 trailing:
@@ -119,16 +133,7 @@ struct ContentView: View {
         stopWatches.remove(atOffsets: offsets)
     }
     
-    func saveData(stopwatches: [Stopwatch]) {
-        let dict: NSArray = stopwatches.map {
-            [ "id": ($0.id).uuidString,
-              "title": $0.title as NSString,
-              "counter": $0.counter
-                ] as NSDictionary
-            } as NSArray
-        UserDefaults.standard.setValue(dict, forKey: "stopwatches")
-    }
-    
+
 }
 
 //struct ContentView_Previews: PreviewProvider {
@@ -147,9 +152,45 @@ extension String {
         return String(format:"%02i:%02i:%02i", hours, minutes, seconds)
     }
 }
+extension Date {
+    func differenceInSeconds(_ time: Date) -> Int {
+        let dateComponent: Calendar.Component = .second
+        let set: Set = [dateComponent]
+        return Calendar.current.dateComponents(set, from: self, to: time).second ?? 0
+    }
+}
 
 struct TrackerStruct {
     let id: UUID
     let counterTime: Int
     let title: String
+}
+
+extension UserDefaults {
+    
+    static func save(stopwatches: [Stopwatch]) {
+        let dict: NSArray = stopwatches.map {
+            [ "id": ($0.id).uuidString,
+              "title": $0.title as NSString,
+              "counter": $0.counter
+                ] as NSDictionary
+            } as NSArray
+        UserDefaults.standard.setValue(dict, forKey: "stopwatches")
+    }
+    
+    func save(trackers: [TrackerModel]) {
+        let dictArray: NSArray = trackers.map { trackerToDictionary($0) } as NSArray
+        UserDefaults.standard.set(dictArray, forKey: "trackers")
+    }
+    
+    
+    private func trackerToDictionary(_ model: TrackerModel) -> [String: Any] {
+        var dictionary = [String: Any]()
+        Mirror(reflecting: TrackerModel.self).children.forEach {
+            if let key = $0.label {
+                dictionary[key] = $0.value
+            }
+        }
+        return dictionary
+    }
 }
